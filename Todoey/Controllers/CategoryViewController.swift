@@ -7,20 +7,28 @@
 //
 
 import UIKit
-import CoreData
 import RealmSwift
+import ChameleonFramework
 
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipetTableViewController {
     
     let realm = try! Realm()
-    var categoryArray: Results<Category>?
+    var categoryList: Results<Category>?
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-        
+//        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         loadCategories()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        tableView.rowHeight = 80.0
+        tableView.separatorStyle = .none
+        
+        navigationController?.navigationBar.barTintColor = FlatGray()
+        navigationController?.navigationBar.tintColor = FlatWhite()
+        navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor: FlatWhite()]
     }
     
     
@@ -39,6 +47,7 @@ class CategoryViewController: UITableViewController {
             
             let newCategory = Category()
             newCategory.name = textField.text!
+            newCategory.bgColor = UIColor.randomFlat.hexValue()
             
             self.save(category: newCategory)
         }
@@ -62,16 +71,30 @@ class CategoryViewController: UITableViewController {
     // 1. Define custom cell
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         
-        cell.textLabel?.text = categoryArray?[indexPath.row].name ?? "No Categories added yet"
+        if (categoryList?.count)! > 0 {
+            let cat = categoryList?[indexPath.row]
+            
+            cell.textLabel?.text = cat?.name
+            cell.backgroundColor = HexColor((cat?.bgColor)!)
+            cell.accessoryType = .disclosureIndicator
+            cell.tintColor = ContrastColorOf(cell.backgroundColor!, returnFlat: true)
+            
+            cell.textLabel?.textColor = ContrastColorOf(cell.backgroundColor!, returnFlat: true)
+            
+        } else {
+            cell.textLabel?.text =  "No categories added yet!"
+        }
         
         return cell
     }
     
     // 2. Define number of rows
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categoryArray?.count ?? 1
+        let _numberOfRowsInSection = categoryList?.count == 0 ? 1 : categoryList?.count ?? 1
+        
+        return _numberOfRowsInSection
     }
     
     
@@ -90,11 +113,40 @@ class CategoryViewController: UITableViewController {
         let destinationVC = segue.destination as! TodoListViewController
         
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.categorySelected = categoryArray?[indexPath.row]
+            destinationVC.categorySelected = categoryList?[indexPath.row]
         }
-        
     }
     
+    // 3. Add swipe options using UITableViewRowAction (UIContextualAction another way)
+//    override func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
+//
+//        let updateHandler: (UITableViewRowAction, IndexPath) -> Void = { _, indexPath in
+//            print("Update row")
+//        }
+//
+//        let deleteHandler: (UITableViewRowAction, IndexPath) -> Void = { _, indexPath in
+//
+//            print("Delete row: \(String(describing: self.categoryList![indexPath.row]))")
+//
+//            do {
+//                try self.realm.write {
+//                    self.realm.delete(self.categoryList![indexPath.row])
+//                }
+//                tableView.reloadData()
+//            } catch {
+//                print("Error deleting category, \(error)")
+//            }
+//        }
+//
+//        let updateAction = UITableViewRowAction(style: .normal, title: "Update", handler: updateHandler)
+//        updateAction.backgroundColor = UIColor.cyan
+//
+//
+//        let deleteAction = UITableViewRowAction(style: .destructive, title: "Delete", handler: deleteHandler)
+//
+//
+//        return [deleteAction, updateAction]
+//    }
     
     //
     // MARK: - DATA MANIPULATION METHODS
@@ -103,7 +155,7 @@ class CategoryViewController: UITableViewController {
     // 1. Load data
     func loadCategories() {
         
-        categoryArray = realm.objects(Category.self)
+        categoryList = realm.objects(Category.self).sorted(byKeyPath: "name", ascending: true)
         
         tableView.reloadData()
     }
@@ -120,6 +172,19 @@ class CategoryViewController: UITableViewController {
         }
         
         tableView.reloadData()
+    }
+    
+    // 3. Delete data
+    override func updateModel(at indexPath: IndexPath) {
+        if let categoryForDeletion = self.categoryList?[indexPath.row] {
+            do {
+                try self.realm.write {
+                    self.realm.delete(categoryForDeletion)
+                }
+            } catch {
+                print("Error deleting category, \(error)")
+            }
+        }
     }
     
 }
